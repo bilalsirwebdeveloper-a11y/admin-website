@@ -6,6 +6,10 @@
     <title>Admin Dashboard - GroupMela</title>
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="admin-wrapper">
@@ -63,7 +67,7 @@
                 <div id="dashboard-section" class="admin-section active">
                     <h1 class="admin-page-title">Dashboard</h1>
                     
-                    <div class="admin-stats-grid">
+                    <div class="admin-stats-grid" id="statsGrid">
                         <div class="admin-stat-card">
                             <i class="fas fa-users"></i>
                             <div>
@@ -115,21 +119,22 @@
 
                     <div class="admin-recent-groups">
                         <h2>Recently Added Groups</h2>
-                        <table class="admin-table" id="recentGroupsTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Group Name</th>
-                                    <th>Category</th>
-                                    <th>Status</th>
-                                    <th>Date</th>
-                                    <th>Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody id="recentGroupsBody">
-                                <!-- Filled by JS -->
-                            </tbody>
-                        </table>
+                        <div class="admin-table-container">
+                            <table class="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Group Name</th>
+                                        <th>Category</th>
+                                        <th>Status</th>
+                                        <th>Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="recentGroupsBody">
+                                    <tr><td colspan="5">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
 
@@ -140,7 +145,6 @@
                         <table class="admin-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
                                     <th>Group Name</th>
                                     <th>Category</th>
                                     <th>Link</th>
@@ -149,7 +153,7 @@
                                 </tr>
                             </thead>
                             <tbody id="pendingGroupsBody">
-                                <!-- Filled by JS -->
+                                <tr><td colspan="5">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -170,14 +174,13 @@
                             <option value="pending">Pending</option>
                             <option value="rejected">Rejected</option>
                         </select>
-                        <button onclick="loadAllGroups()" class="admin-btn">Apply Filters</button>
+                        <button onclick="applyFilters()" class="admin-btn">Apply Filters</button>
                     </div>
                     
                     <div class="admin-table-container">
                         <table class="admin-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
                                     <th>Group Name</th>
                                     <th>Category</th>
                                     <th>Members</th>
@@ -188,7 +191,7 @@
                                 </tr>
                             </thead>
                             <tbody id="allGroupsBody">
-                                <!-- Filled by JS -->
+                                <tr><td colspan="7">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -211,7 +214,6 @@
                         <table class="admin-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
                                     <th>Icon</th>
                                     <th>Name</th>
                                     <th>Groups</th>
@@ -219,7 +221,7 @@
                                 </tr>
                             </thead>
                             <tbody id="categoriesBody">
-                                <!-- Filled by JS -->
+                                <tr><td colspan="4">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -234,14 +236,13 @@
                             <thead>
                                 <tr>
                                     <th>Group</th>
-                                    <th>Reported By</th>
                                     <th>Reason</th>
                                     <th>Date</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="reportsBody">
-                                <!-- Filled by JS -->
+                                <tr><td colspan="4">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -253,6 +254,16 @@
                     
                     <div class="admin-settings-form">
                         <div class="admin-form-group">
+                            <label>Admin Username</label>
+                            <input type="text" id="adminUser" value="groupmela">
+                        </div>
+                        
+                        <div class="admin-form-group">
+                            <label>Admin Password</label>
+                            <input type="text" id="adminPass" value="admin@123">
+                        </div>
+                        
+                        <div class="admin-form-group">
                             <label>Site Name</label>
                             <input type="text" id="siteName" value="GroupMela">
                         </div>
@@ -260,19 +271,6 @@
                         <div class="admin-form-group">
                             <label>Admin Email</label>
                             <input type="email" id="adminEmail" value="admin@groupmela.com">
-                        </div>
-                        
-                        <div class="admin-form-group">
-                            <label>Groups Per Page</label>
-                            <input type="number" id="groupsPerPage" value="12">
-                        </div>
-                        
-                        <div class="admin-form-group">
-                            <label>Auto Approve Groups</label>
-                            <select id="autoApprove">
-                                <option value="no">No (Manual Approval)</option>
-                                <option value="yes">Yes (Auto Approve)</option>
-                            </select>
                         </div>
                         
                         <button onclick="saveSettings()" class="admin-btn">Save Settings</button>
@@ -294,7 +292,7 @@
         <div class="admin-modal-content">
             <span class="admin-modal-close" onclick="closeModal()">&times;</span>
             <h2>Edit Group</h2>
-            <form id="editGroupForm">
+            <form id="editGroupForm" onsubmit="updateGroup(event)">
                 <input type="hidden" id="editGroupId">
                 
                 <div class="admin-form-group">
@@ -342,7 +340,7 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="../firebase-config.js"></script>
     <script src="script.js"></script>
 </body>
 </html>
