@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - GroupMela</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="admin-login-body">
+    <div class="admin-login-container">
+        <div class="admin-login-box">
+            <div class="admin-login-header">
+                <i class="fas fa-shield-alt"></i>
+                <h2>Admin Login</h2>
+                <p>GroupMela Dashboard</p>
+            </div>
+            
+            <form id="adminLoginForm" onsubmit="adminLogin(event)">
+                <div class="admin-input-group">
+                    <i class="fas fa-user"></i>
+                    <input type="text" id="username" placeholder="Username" required>
+                </div>
+                
+                <div class="admin-input-group">
+                    <i class="fas fa-lock"></i>
+                    <input type="password" id="password" placeholder="Password" required>
+                </div>
+                
+                <button type="submit" class="admin-login-btn">
+                    <i class="fas fa-sign-in-alt"></i> Login to Dashboard
+                </button>
+                
+                <div id="loginError" class="admin-error" style="display: none;">
+                    <i class="fas fa-exclamation-circle"></i> Invalid username or password
+                </div>
+            </form>
+            
+            <div class="admin-login-footer">
+                <a href="../index.html"><i class="fas fa-arrow-left"></i> Back to Website</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function adminLogin(event) {
+            event.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            // Admin credentials (change these!)
+            const ADMIN_USER = "groupmela";
+            const ADMIN_PASS = "admin@123";
+            
+            if (username === ADMIN_USER && password === ADMIN_PASS) {
+                // Set login flag
+                sessionStorage.setItem('adminLoggedIn', 'true');
+                window.location.href = 'dashboard.html';
+            } else {
+                document.getElementById('loginError').style.display = 'flex';
+            }
+        }
+    </script>
+</body>
+</html>
