@@ -138,9 +138,24 @@
                     </div>
                 </div>
 
-                <!-- Pending Groups Section -->
+                <!-- Pending Groups Section - FIXED WITH BUTTONS -->
                 <div id="pending-section" class="admin-section">
-                    <h1 class="admin-page-title">Pending Groups</h1>
+                    <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <h1 class="admin-page-title" style="margin-bottom: 0;">Pending Groups</h1>
+                        <button onclick="forceRefreshPending()" 
+                                style="background: #25D366; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-sync-alt"></i> Force Refresh
+                        </button>
+                        <button onclick="loadGroups()" 
+                                style="background: #ffc107; color: black; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-database"></i> Reload Data
+                        </button>
+                        <button onclick="checkFirebaseDirectly()" 
+                                style="background: #17a2b8; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-search"></i> Check Firebase
+                        </button>
+                    </div>
+                    
                     <div class="admin-table-container">
                         <table class="admin-table">
                             <thead>
@@ -161,7 +176,13 @@
 
                 <!-- All Groups Section -->
                 <div id="allgroups-section" class="admin-section">
-                    <h1 class="admin-page-title">All Groups</h1>
+                    <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <h1 class="admin-page-title" style="margin-bottom: 0;">All Groups</h1>
+                        <button onclick="loadGroups()" 
+                                style="background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
                     
                     <div class="admin-filters">
                         <input type="text" id="searchGroups" placeholder="Search groups...">
@@ -199,11 +220,17 @@
 
                 <!-- Categories Section -->
                 <div id="categories-section" class="admin-section">
-                    <h1 class="admin-page-title">Categories</h1>
+                    <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <h1 class="admin-page-title" style="margin-bottom: 0;">Categories</h1>
+                        <button onclick="loadCategories()" 
+                                style="background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
                     
                     <div class="admin-category-form">
                         <h3>Add New Category</h3>
-                        <div class="admin-form-group">
+                        <div class="admin-form-group" style="display: flex; gap: 10px;">
                             <input type="text" id="catName" placeholder="Category Name">
                             <input type="text" id="catIcon" placeholder="Icon (e.g., 📚)">
                             <button onclick="addCategory()" class="admin-btn">Add Category</button>
@@ -229,7 +256,13 @@
 
                 <!-- Reports Section -->
                 <div id="reports-section" class="admin-section">
-                    <h1 class="admin-page-title">Broken Link Reports</h1>
+                    <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                        <h1 class="admin-page-title" style="margin-bottom: 0;">Broken Link Reports</h1>
+                        <button onclick="loadReports()" 
+                                style="background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                            <i class="fas fa-sync-alt"></i> Refresh
+                        </button>
+                    </div>
                     
                     <div class="admin-table-container">
                         <table class="admin-table">
