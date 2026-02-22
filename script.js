@@ -66,30 +66,42 @@ let reports = JSON.parse(localStorage.getItem('reports')) || [
     }
 ];
 
-// Initialize Dashboard
-document.addEventListener('DOMContentLoaded', function() {
-    updateStats();
-    loadRecentGroups();
-    loadPendingGroups();
-    loadAllGroups();
-    loadCategories();
-    loadReports();
-    loadCategoryOptions();
-    loadCategorySelects();
-    initChart();
-});
-
-// Toggle Sidebar
-function toggleSidebar() {
-    const sidebar = document.getElementById('adminSidebar');
-    const main = document.querySelector('.admin-main');
-    sidebar.classList.toggle('collapsed');
-    main.classList.toggle('expanded');
+// Check if admin is logged in
+if (!sessionStorage.getItem('adminLoggedIn') && !window.location.pathname.includes('index.html')) {
+    window.location.href = 'index.html';
 }
 
-// Show Section
+// Global variables
+let categories = [];
+let groups = [];
+let reports = [];
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('Admin panel loaded');
+    
+    // Load categories
+    loadCategories();
+    
+    // Load groups
+    loadGroups();
+    
+    // Load reports
+    loadReports();
+    
+    // Setup real-time updates
+    setupRealtimeUpdates();
+});
+
+// Toggle sidebar
+function toggleSidebar() {
+    document.getElementById('adminSidebar').classList.toggle('collapsed');
+    document.querySelector('.admin-main').classList.toggle('expanded');
+}
+
+// Show section
 function showSection(section) {
-    // Update menu active state
+    // Update menu
     document.querySelectorAll('.admin-sidebar-menu li').forEach(li => {
         li.classList.remove('active');
     });
@@ -100,21 +112,66 @@ function showSection(section) {
         s.classList.remove('active');
     });
     document.getElementById(section + '-section').classList.add('active');
-    
-    // Refresh data if needed
-    if (section === 'pending') loadPendingGroups();
-    if (section === 'allgroups') loadAllGroups();
-    if (section === 'categories') loadCategories();
-    if (section === 'reports') loadReports();
 }
 
-// Update Stats
+// Load categories
+function loadCategories() {
+    database.ref('categories').on('value', (snapshot) => {
+        categories = [];
+        snapshot.forEach((childSnapshot) => {
+            categories.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+        
+        displayCategories();
+        populateCategoryFilters();
+        populateEditCategorySelect();
+    });
+}
+
+// Load groups
+function loadGroups() {
+    database.ref('groups').on('value', (snapshot) => {
+        groups = [];
+        snapshot.forEach((childSnapshot) => {
+            groups.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+        
+        updateStats();
+        displayRecentGroups();
+        displayPendingGroups();
+        displayAllGroups();
+    });
+}
+
+// Load reports
+function loadReports() {
+    database.ref('reports').on('value', (snapshot) => {
+        reports = [];
+        snapshot.forEach((childSnapshot) => {
+            reports.push({
+                id: childSnapshot.key,
+                ...childSnapshot.val()
+            });
+        });
+        
+        displayReports();
+        document.getElementById('reportsCount').textContent = reports.length;
+    });
+}
+
+// Update dashboard stats
 function updateStats() {
     const totalGroups = groups.length;
     const pendingGroups = groups.filter(g => g.status === 'pending').length;
     const approvedGroups = groups.filter(g => g.status === 'approved').length;
     const featuredGroups = groups.filter(g => g.featured).length;
-    const totalViews = groups.reduce((sum, g) => sum + g.views, 0);
+    const totalViews = groups.reduce((sum, g) => sum + (g.views || 0), 0);
     
     document.getElementById('totalGroups').textContent = totalGroups;
     document.getElementById('pendingGroups').textContent = pendingGroups;
@@ -122,213 +179,236 @@ function updateStats() {
     document.getElementById('featuredGroups').textContent = featuredGroups;
     document.getElementById('totalViews').textContent = totalViews.toLocaleString();
     document.getElementById('pendingCount').textContent = pendingGroups;
-    document.getElementById('reportsCount').textContent = reports.length;
-    document.getElementById('totalReports').textContent = reports.length;
 }
 
-// Load Recent Groups
-function loadRecentGroups() {
+// Display recent groups
+function displayRecentGroups() {
     const tbody = document.getElementById('recentGroupsBody');
     tbody.innerHTML = '';
     
-    groups.slice(0, 5).forEach(group => {
+    const recent = groups.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
+    
+    if (recent.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5">No groups found</td></tr>';
+        return;
+    }
+    
+    recent.forEach(group => {
         const row = tbody.insertRow();
         row.innerHTML = `
-            <td>#${group.id}</td>
             <td>${group.name}</td>
-            <td>${group.category}</td>
+            <td>${group.category || 'N/A'}</td>
             <td><span class="status-badge status-${group.status}">${group.status}</span></td>
-            <td>${group.date}</td>
+            <td>${new Date(group.createdAt).toLocaleDateString()}</td>
             <td class="admin-actions">
-                <button class="btn-edit" onclick="editGroup(${group.id})"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete" onclick="deleteGroup(${group.id})"><i class="fas fa-trash"></i></button>
+                <button class="btn-edit" onclick="editGroup('${group.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteGroup('${group.id}')"><i class="fas fa-trash"></i></button>
             </td>
         `;
     });
 }
 
-// Load Pending Groups
-function loadPendingGroups() {
+// Display pending groups
+function displayPendingGroups() {
     const tbody = document.getElementById('pendingGroupsBody');
     tbody.innerHTML = '';
     
     const pending = groups.filter(g => g.status === 'pending');
     
     if (pending.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center;">No pending groups</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5">No pending groups</td></tr>';
         return;
     }
     
     pending.forEach(group => {
         const row = tbody.insertRow();
         row.innerHTML = `
-            <td>#${group.id}</td>
             <td>${group.name}</td>
-            <td>${group.category}</td>
+            <td>${group.category || 'N/A'}</td>
             <td><a href="${group.link}" target="_blank">View Link</a></td>
-            <td>${group.date}</td>
+            <td>${new Date(group.createdAt).toLocaleDateString()}</td>
             <td class="admin-actions">
-                <button class="btn-approve" onclick="approveGroup(${group.id})"><i class="fas fa-check"></i> Approve</button>
-                <button class="btn-reject" onclick="rejectGroup(${group.id})"><i class="fas fa-times"></i> Reject</button>
-                <button class="btn-edit" onclick="editGroup(${group.id})"><i class="fas fa-edit"></i></button>
+                <button class="btn-approve" onclick="approveGroup('${group.id}')"><i class="fas fa-check"></i> Approve</button>
+                <button class="btn-reject" onclick="rejectGroup('${group.id}')"><i class="fas fa-times"></i> Reject</button>
+                <button class="btn-edit" onclick="editGroup('${group.id}')"><i class="fas fa-edit"></i></button>
             </td>
         `;
     });
 }
 
-// Load All Groups
-function loadAllGroups() {
+// Display all groups
+function displayAllGroups() {
     const tbody = document.getElementById('allGroupsBody');
     tbody.innerHTML = '';
     
-    const search = document.getElementById('searchGroups')?.value.toLowerCase() || '';
-    const category = document.getElementById('filterCategory')?.value;
-    const status = document.getElementById('filterStatus')?.value;
-    
-    let filtered = groups;
-    
-    if (search) {
-        filtered = filtered.filter(g => 
-            g.name.toLowerCase().includes(search) || 
-            g.description.toLowerCase().includes(search)
-        );
+    if (groups.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">No groups found</td></tr>';
+        return;
     }
     
-    if (category) {
-        filtered = filtered.filter(g => g.categoryId == category);
-    }
-    
-    if (status) {
-        filtered = filtered.filter(g => g.status === status);
-    }
-    
-    filtered.forEach(group => {
+    groups.forEach(group => {
         const row = tbody.insertRow();
         row.innerHTML = `
-            <td>#${group.id}</td>
             <td>${group.name}</td>
-            <td>${group.category}</td>
-            <td>${group.members}</td>
-            <td>${group.views}</td>
+            <td>${group.category || 'N/A'}</td>
+            <td>${group.members || 0}</td>
+            <td>${group.views || 0}</td>
             <td><span class="status-badge status-${group.status}">${group.status}</span></td>
             <td>${group.featured ? '⭐ Yes' : 'No'}</td>
             <td class="admin-actions">
-                <button class="btn-edit" onclick="editGroup(${group.id})"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete" onclick="deleteGroup(${group.id})"><i class="fas fa-trash"></i></button>
+                <button class="btn-edit" onclick="editGroup('${group.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteGroup('${group.id}')"><i class="fas fa-trash"></i></button>
             </td>
         `;
     });
 }
 
-// Load Categories
-function loadCategories() {
+// Display categories
+function displayCategories() {
     const tbody = document.getElementById('categoriesBody');
     tbody.innerHTML = '';
     
+    if (categories.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4">No categories found</td></tr>';
+        return;
+    }
+    
     categories.forEach(cat => {
         const groupCount = groups.filter(g => g.categoryId === cat.id).length;
-        cat.count = groupCount;
         
         const row = tbody.insertRow();
         row.innerHTML = `
-            <td>#${cat.id}</td>
-            <td style="font-size: 24px;">${cat.icon}</td>
+            <td style="font-size: 24px;">${cat.icon || '📌'}</td>
             <td>${cat.name}</td>
             <td>${groupCount}</td>
             <td class="admin-actions">
-                <button class="btn-edit" onclick="editCategory(${cat.id})"><i class="fas fa-edit"></i></button>
-                <button class="btn-delete" onclick="deleteCategory(${cat.id})"><i class="fas fa-trash"></i></button>
+                <button class="btn-edit" onclick="editCategory('${cat.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteCategory('${cat.id}')"><i class="fas fa-trash"></i></button>
             </td>
         `;
     });
-    
-    localStorage.setItem('categories', JSON.stringify(categories));
 }
 
-// Load Reports
-function loadReports() {
+// Display reports
+function displayReports() {
     const tbody = document.getElementById('reportsBody');
     tbody.innerHTML = '';
     
     if (reports.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No reports</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4">No reports found</td></tr>';
         return;
     }
     
     reports.forEach(report => {
         const row = tbody.insertRow();
         row.innerHTML = `
-            <td>${report.groupName}</td>
-            <td>${report.reporter}</td>
-            <td>${report.reason}</td>
-            <td>${report.date}</td>
+            <td>${report.groupName || 'Unknown'}</td>
+            <td>${report.reason || 'Broken link'}</td>
+            <td>${new Date(report.createdAt).toLocaleDateString()}</td>
             <td class="admin-actions">
-                <button class="btn-approve" onclick="resolveReport(${report.id})">Resolve</button>
-                <button class="btn-delete" onclick="deleteReport(${report.id})">Delete</button>
+                <button class="btn-approve" onclick="resolveReport('${report.id}')">Resolve</button>
+                <button class="btn-delete" onclick="deleteReport('${report.id}')">Delete</button>
             </td>
         `;
     });
 }
 
-// Load Category Options for Selects
-function loadCategoryOptions() {
-    const select = document.getElementById('filterCategory');
-    if (select) {
-        select.innerHTML = '<option value="">All Categories</option>';
+// Populate category filters
+function populateCategoryFilters() {
+    const filterCat = document.getElementById('filterCategory');
+    if (filterCat) {
+        filterCat.innerHTML = '<option value="">All Categories</option>';
         categories.forEach(cat => {
-            select.innerHTML += `<option value="${cat.id}">${cat.icon} ${cat.name}</option>`;
+            filterCat.innerHTML += `<option value="${cat.id}">${cat.icon || '📌'} ${cat.name}</option>`;
         });
     }
 }
 
-function loadCategorySelects() {
-    const editSelect = document.getElementById('editGroupCategory');
-    if (editSelect) {
-        editSelect.innerHTML = '';
+// Populate edit category select
+function populateEditCategorySelect() {
+    const editCat = document.getElementById('editGroupCategory');
+    if (editCat) {
+        editCat.innerHTML = '';
         categories.forEach(cat => {
-            editSelect.innerHTML += `<option value="${cat.id}">${cat.icon} ${cat.name}</option>`;
+            editCat.innerHTML += `<option value="${cat.id}">${cat.icon || '📌'} ${cat.name}</option>`;
         });
     }
 }
 
-// Approve Group
+// Apply filters
+function applyFilters() {
+    const search = document.getElementById('searchGroups').value.toLowerCase();
+    const category = document.getElementById('filterCategory').value;
+    const status = document.getElementById('filterStatus').value;
+    
+    const tbody = document.getElementById('allGroupsBody');
+    tbody.innerHTML = '';
+    
+    let filtered = groups;
+    
+    if (search) {
+        filtered = filtered.filter(g => g.name.toLowerCase().includes(search));
+    }
+    
+    if (category) {
+        filtered = filtered.filter(g => g.categoryId === category);
+    }
+    
+    if (status) {
+        filtered = filtered.filter(g => g.status === status);
+    }
+    
+    if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7">No groups match filters</td></tr>';
+        return;
+    }
+    
+    filtered.forEach(group => {
+        const row = tbody.insertRow();
+        row.innerHTML = `
+            <td>${group.name}</td>
+            <td>${group.category || 'N/A'}</td>
+            <td>${group.members || 0}</td>
+            <td>${group.views || 0}</td>
+            <td><span class="status-badge status-${group.status}">${group.status}</span></td>
+            <td>${group.featured ? '⭐ Yes' : 'No'}</td>
+            <td class="admin-actions">
+                <button class="btn-edit" onclick="editGroup('${group.id}')"><i class="fas fa-edit"></i></button>
+                <button class="btn-delete" onclick="deleteGroup('${group.id}')"><i class="fas fa-trash"></i></button>
+            </td>
+        `;
+    });
+}
+
+// Approve group
 function approveGroup(id) {
-    const group = groups.find(g => g.id === id);
-    if (group) {
-        group.status = 'approved';
-        localStorage.setItem('groups', JSON.stringify(groups));
-        loadPendingGroups();
-        loadAllGroups();
-        updateStats();
-        showNotification('Group approved successfully!');
-    }
+    database.ref('groups/' + id).update({ status: 'approved' })
+        .then(() => {
+            showNotification('Group approved successfully!');
+        });
 }
 
-// Reject Group
+// Reject group
 function rejectGroup(id) {
     if (confirm('Are you sure you want to reject this group?')) {
-        groups = groups.filter(g => g.id !== id);
-        localStorage.setItem('groups', JSON.stringify(groups));
-        loadPendingGroups();
-        loadAllGroups();
-        updateStats();
+        database.ref('groups/' + id).update({ status: 'rejected' })
+            .then(() => {
+                showNotification('Group rejected');
+            });
     }
 }
 
-// Delete Group
+// Delete group
 function deleteGroup(id) {
-    if (confirm('Are you sure you want to delete this group? This action cannot be undone.')) {
-        groups = groups.filter(g => g.id !== id);
-        localStorage.setItem('groups', JSON.stringify(groups));
-        loadRecentGroups();
-        loadPendingGroups();
-        loadAllGroups();
-        updateStats();
-        showNotification('Group deleted successfully!');
+    if (confirm('Are you sure you want to delete this group?')) {
+        database.ref('groups/' + id).remove()
+            .then(() => {
+                showNotification('Group deleted');
+            });
     }
 }
 
-// Edit Group
+// Edit group
 function editGroup(id) {
     const group = groups.find(g => g.id === id);
     if (group) {
@@ -336,46 +416,47 @@ function editGroup(id) {
         document.getElementById('editGroupName').value = group.name;
         document.getElementById('editGroupLink').value = group.link;
         document.getElementById('editGroupCategory').value = group.categoryId;
-        document.getElementById('editGroupDesc').value = group.description;
-        document.getElementById('editGroupMembers').value = group.members;
+        document.getElementById('editGroupDesc').value = group.description || '';
+        document.getElementById('editGroupMembers').value = group.members || 0;
         document.getElementById('editGroupStatus').value = group.status;
-        document.getElementById('editGroupFeatured').checked = group.featured;
+        document.getElementById('editGroupFeatured').checked = group.featured || false;
         
         document.getElementById('editModal').classList.add('show');
     }
 }
 
-// Save Edit Group
-document.getElementById('editGroupForm')?.addEventListener('submit', function(e) {
-    e.preventDefault();
+// Update group
+function updateGroup(event) {
+    event.preventDefault();
     
-    const id = parseInt(document.getElementById('editGroupId').value);
-    const group = groups.find(g => g.id === id);
+    const groupId = document.getElementById('editGroupId').value;
+    const categoryId = document.getElementById('editGroupCategory').value;
+    const category = categories.find(c => c.id === categoryId);
     
-    if (group) {
-        group.name = document.getElementById('editGroupName').value;
-        group.link = document.getElementById('editGroupLink').value;
-        group.categoryId = parseInt(document.getElementById('editGroupCategory').value);
-        group.category = categories.find(c => c.id === group.categoryId).name;
-        group.description = document.getElementById('editGroupDesc').value;
-        group.members = parseInt(document.getElementById('editGroupMembers').value) || 0;
-        group.status = document.getElementById('editGroupStatus').value;
-        group.featured = document.getElementById('editGroupFeatured').checked;
-        
-        localStorage.setItem('groups', JSON.stringify(groups));
-        closeModal();
-        loadAllGroups();
-        loadRecentGroups();
-        showNotification('Group updated successfully!');
-    }
-});
+    const updatedData = {
+        name: document.getElementById('editGroupName').value,
+        link: document.getElementById('editGroupLink').value,
+        categoryId: categoryId,
+        category: category ? category.name : 'Other',
+        description: document.getElementById('editGroupDesc').value,
+        members: parseInt(document.getElementById('editGroupMembers').value) || 0,
+        status: document.getElementById('editGroupStatus').value,
+        featured: document.getElementById('editGroupFeatured').checked
+    };
+    
+    database.ref('groups/' + groupId).update(updatedData)
+        .then(() => {
+            closeModal();
+            showNotification('Group updated successfully!');
+        });
+}
 
-// Close Modal
+// Close modal
 function closeModal() {
     document.getElementById('editModal').classList.remove('show');
 }
 
-// Add Category
+// Add category
 function addCategory() {
     const name = document.getElementById('catName').value;
     const icon = document.getElementById('catIcon').value;
@@ -386,72 +467,65 @@ function addCategory() {
     }
     
     const newCat = {
-        id: categories.length + 1,
         name: name,
-        icon: icon,
-        count: 0
+        icon: icon
     };
     
-    categories.push(newCat);
-    localStorage.setItem('categories', JSON.stringify(categories));
-    
-    document.getElementById('catName').value = '';
-    document.getElementById('catIcon').value = '';
-    
-    loadCategories();
-    loadCategoryOptions();
-    loadCategorySelects();
-    showNotification('Category added successfully!');
+    database.ref('categories').push(newCat)
+        .then(() => {
+            document.getElementById('catName').value = '';
+            document.getElementById('catIcon').value = '';
+            showNotification('Category added!');
+        });
 }
 
-// Delete Category
+// Delete category
 function deleteCategory(id) {
-    if (confirm('Are you sure? This will not delete groups in this category.')) {
-        categories = categories.filter(c => c.id !== id);
-        localStorage.setItem('categories', JSON.stringify(categories));
-        loadCategories();
-        loadCategoryOptions();
-        loadCategorySelects();
+    if (confirm('Are you sure? This will not delete groups.')) {
+        database.ref('categories/' + id).remove()
+            .then(() => {
+                showNotification('Category deleted');
+            });
     }
 }
 
-// Resolve Report
+// Resolve report
 function resolveReport(id) {
-    reports = reports.filter(r => r.id !== id);
-    localStorage.setItem('reports', JSON.stringify(reports));
-    loadReports();
-    updateStats();
+    database.ref('reports/' + id).remove()
+        .then(() => {
+            showNotification('Report resolved');
+        });
 }
 
-// Delete Report
+// Delete report
 function deleteReport(id) {
-    reports = reports.filter(r => r.id !== id);
-    localStorage.setItem('reports', JSON.stringify(reports));
-    loadReports();
-    updateStats();
+    database.ref('reports/' + id).remove()
+        .then(() => {
+            showNotification('Report deleted');
+        });
 }
 
-// Save Settings
+// Save settings
 function saveSettings() {
     const settings = {
+        adminUser: document.getElementById('adminUser').value,
+        adminPass: document.getElementById('adminPass').value,
         siteName: document.getElementById('siteName').value,
-        adminEmail: document.getElementById('adminEmail').value,
-        groupsPerPage: document.getElementById('groupsPerPage').value,
-        autoApprove: document.getElementById('autoApprove').value
+        adminEmail: document.getElementById('adminEmail').value
     };
     
-    localStorage.setItem('settings', JSON.stringify(settings));
-    showNotification('Settings saved successfully!');
+    localStorage.setItem('adminSettings', JSON.stringify(settings));
+    showNotification('Settings saved!');
 }
 
-// Clear All Data
+// Clear all data
 function clearAllData() {
-    if (confirm('⚠️ WARNING: This will delete ALL groups, categories, and reports! Are you absolutely sure?')) {
+    if (confirm('⚠️ WARNING: This will delete ALL data! Are you sure?')) {
         if (confirm('Type "DELETE" to confirm')) {
-            groups = [];
-            reports = [];
-            localStorage.clear();
-            location.reload();
+            database.ref().remove()
+                .then(() => {
+                    showNotification('All data cleared');
+                });
         }
     }
 }
@@ -462,9 +536,8 @@ function logout() {
     window.location.href = 'index.html';
 }
 
-// Show Notification
+// Show notification
 function showNotification(message) {
-    // Create notification element
     const notification = document.createElement('div');
     notification.style.cssText = `
         position: fixed;
@@ -487,65 +560,36 @@ function showNotification(message) {
     }, 3000);
 }
 
-// Initialize Chart
-function initChart() {
-    const ctx = document.getElementById('activityChart')?.getContext('2d');
-    if (!ctx) return;
+// Setup real-time updates
+function setupRealtimeUpdates() {
+    // Listen for new groups
+    database.ref('groups').on('child_added', () => {
+        loadGroups();
+    });
     
-    // Get last 7 days data
-    const dates = [];
-    const counts = [];
-    
-    for (let i = 6; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        dates.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
-        
-        const dayGroups = groups.filter(g => {
-            const groupDate = new Date(g.date);
-            return groupDate.toDateString() === date.toDateString();
-        }).length;
-        
-        counts.push(dayGroups);
-    }
-    
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: dates,
-            datasets: [{
-                label: 'Groups Added',
-                data: counts,
-                borderColor: '#667eea',
-                backgroundColor: 'rgba(102,126,234,0.1)',
-                tension: 0.4,
-                fill: true
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            }
-        }
+    // Listen for changes
+    database.ref('groups').on('child_changed', () => {
+        loadGroups();
     });
 }
 
-// Add CSS animation
+// Add animation style
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
-        from {
-            transform: translateX(100%);
-            opacity: 0;
-        }
-        to {
-            transform: translateX(0);
-            opacity: 1;
-        }
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    .loading {
+        text-align: center;
+        padding: 40px;
+        color: #666;
+    }
+    .no-groups {
+        text-align: center;
+        padding: 40px;
+        color: #999;
+        grid-column: 1/-1;
     }
 `;
 document.head.appendChild(style);
