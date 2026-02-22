@@ -11,7 +11,8 @@ let chart = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('Admin panel loaded - Firebase connected');
+    console.log('🚀 Admin panel loaded - Firebase connected');
+    console.log('Firebase database:', database ? '✅ Connected' : '❌ Not connected');
     
     // Load data from Firebase
     loadCategories();
@@ -20,7 +21,51 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Setup real-time listeners
     setupRealtimeListeners();
+    
+    // Emergency check after 3 seconds
+    setTimeout(emergencyCheck, 3000);
 });
+
+// Emergency check function
+function emergencyCheck() {
+    console.log('🔍 Running emergency check...');
+    
+    // Check if groups array has data
+    console.log('Groups in memory:', groups.length);
+    if (groups.length > 0) {
+        console.log('Sample group:', groups[0]);
+        
+        // Check pending groups
+        const pending = groups.filter(g => g && g.status === 'pending');
+        console.log('Pending groups in memory:', pending.length);
+        
+        if (pending.length > 0) {
+            console.log('✅ Pending groups found in memory!');
+            // Force display
+            const tbody = document.getElementById('pendingGroupsBody');
+            if (tbody) {
+                displayPendingGroups();
+            }
+        } else {
+            console.log('❌ No pending groups in memory');
+            
+            // Direct Firebase check
+            database.ref('groups').orderByChild('status').equalTo('pending').once('value', (snapshot) => {
+                console.log('Direct Firebase check - Pending groups:', snapshot.numChildren());
+                if (snapshot.exists()) {
+                    console.log('✅ Firebase has pending groups but not in memory! Refreshing...');
+                    loadGroups(); // Force reload
+                } else {
+                    console.log('❌ No pending groups in Firebase either');
+                }
+            });
+        }
+    } else {
+        console.log('❌ Groups array is empty!');
+        // Force reload
+        loadGroups();
+    }
+}
 
 // ============================================
 // FIREBASE DATA LOADING FUNCTIONS
@@ -37,17 +82,23 @@ function loadCategories() {
             });
         });
         
+        console.log('📂 Categories loaded:', categories.length);
+        
         // Update UI
         displayCategories();
         populateCategoryFilters();
         populateEditCategorySelect();
         updateStats();
+    }, (error) => {
+        console.error('Error loading categories:', error);
     });
 }
 
-// Load groups from Firebase
+// Load groups from Firebase - FIXED VERSION
 function loadGroups() {
-    database.ref('groups').on('value', (snapshot) => {
+    console.log('📥 Loading groups from Firebase...');
+    
+    database.ref('groups').once('value', (snapshot) => {
         groups = [];
         snapshot.forEach((childSnapshot) => {
             groups.push({
@@ -56,15 +107,35 @@ function loadGroups() {
             });
         });
         
+        console.log('📊 Groups loaded:', groups.length);
+        
+        // Log status counts
+        const pendingCount = groups.filter(g => g && g.status === 'pending').length;
+        const approvedCount = groups.filter(g => g && g.status === 'approved').length;
+        console.log(`📊 Status: Pending: ${pendingCount}, Approved: ${approvedCount}`);
+        
         // Update all UI sections
         updateStats();
         displayRecentGroups();
-        displayPendingGroups();
+        displayPendingGroups(); // Make sure this is called
         displayAllGroups();
         updateCategoryCounts();
         
         // Update chart
         updateChart();
+    }, (error) => {
+        console.error('Error loading groups:', error);
+    });
+    
+    // Also set up listener for real-time updates
+    database.ref('groups').on('child_changed', () => {
+        console.log('🔄 Group changed, reloading...');
+        loadGroups(); // Reload on changes
+    });
+    
+    database.ref('groups').on('child_added', () => {
+        console.log('🔄 New group added, reloading...');
+        loadGroups(); // Reload on new group
     });
 }
 
@@ -82,19 +153,27 @@ function loadReports() {
         displayReports();
         document.getElementById('reportsCount').textContent = reports.length;
         updateStats();
+    }, (error) => {
+        console.error('Error loading reports:', error);
     });
 }
 
 // Setup real-time listeners
 function setupRealtimeListeners() {
-    // Listen for new groups
-    database.ref('groups').on('child_added', () => {
-        // Data already loaded in loadGroups
+    // Listen for changes in groups
+    database.ref('groups').on('child_changed', () => {
+        console.log('🔄 Group changed detected');
+        loadGroups(); // Reload on changes
     });
     
-    // Listen for changes
-    database.ref('groups').on('child_changed', () => {
-        // Data already loaded in loadGroups
+    database.ref('groups').on('child_added', () => {
+        console.log('🔄 New group added detected');
+        loadGroups(); // Reload on new group
+    });
+    
+    database.ref('groups').on('child_removed', () => {
+        console.log('🔄 Group removed detected');
+        loadGroups(); // Reload on removal
     });
 }
 
@@ -105,9 +184,9 @@ function setupRealtimeListeners() {
 // Update dashboard stats
 function updateStats() {
     const totalGroups = groups.length;
-    const pendingGroups = groups.filter(g => g.status === 'pending').length;
-    const approvedGroups = groups.filter(g => g.status === 'approved').length;
-    const featuredGroups = groups.filter(g => g.featured === true).length;
+    const pendingGroups = groups.filter(g => g && g.status === 'pending').length;
+    const approvedGroups = groups.filter(g => g && g.status === 'approved').length;
+    const featuredGroups = groups.filter(g => g && g.featured === true).length;
     const totalViews = groups.reduce((sum, g) => sum + (g.views || 0), 0);
     
     document.getElementById('totalGroups').textContent = totalGroups;
@@ -116,25 +195,31 @@ function updateStats() {
     document.getElementById('featuredGroups').textContent = featuredGroups;
     document.getElementById('totalViews').textContent = totalViews.toLocaleString();
     document.getElementById('pendingCount').textContent = pendingGroups;
+    document.getElementById('totalReports').textContent = reports.length;
 }
 
 // Display recent groups
 function displayRecentGroups() {
     const tbody = document.getElementById('recentGroupsBody');
-    if (!tbody) return;
+    if (!tbody) {
+        console.error('recentGroupsBody element not found');
+        return;
+    }
     
     // Sort by date (newest first) and take first 5
-    const recent = [...groups].sort((a, b) => {
+    const recent = [...groups].filter(g => g).sort((a, b) => {
         return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     }).slice(0, 5);
     
     if (recent.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No groups found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px;">No groups found</td></tr>';
         return;
     }
     
     tbody.innerHTML = '';
     recent.forEach(group => {
+        if (!group) return;
+        
         const row = tbody.insertRow();
         const date = group.createdAt ? new Date(group.createdAt).toLocaleDateString() : 'N/A';
         
@@ -152,30 +237,45 @@ function displayRecentGroups() {
 }
 
 // ============================================
-// PENDING GROUPS FUNCTIONS
+// PENDING GROUPS FUNCTIONS - FIXED VERSION
 // ============================================
 
-// Display pending groups
+// Display pending groups - FIXED
 function displayPendingGroups() {
-    const tbody = document.getElementById('pendingGroupsBody');
-    if (!tbody) return;
+    console.log('🔍 displayPendingGroups() called');
     
-    const pending = groups.filter(g => g.status === 'pending');
+    const tbody = document.getElementById('pendingGroupsBody');
+    if (!tbody) {
+        console.error('❌ pendingGroupsBody element not found!');
+        return;
+    }
+    
+    console.log('Total groups in memory:', groups.length);
+    
+    // Filter pending groups - make sure to check for null/undefined
+    const pending = groups.filter(g => g && g.status === 'pending');
+    
+    console.log('Pending groups found:', pending.length);
     
     if (pending.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">No pending groups</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px;">⏳ No pending groups found. <button onclick="emergencyCheck()" style="background: #25D366; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer;">Refresh</button></td></tr>';
         return;
     }
     
     tbody.innerHTML = '';
     pending.forEach(group => {
+        if (!group) return;
+        
         const row = tbody.insertRow();
-        const date = group.createdAt ? new Date(group.createdAt).toLocaleDateString() : 'N/A';
+        const date = group.createdAt ? new Date(group.createdAt).toLocaleString() : 'N/A';
+        const link = group.link || '#';
+        
+        console.log('Rendering pending group:', group.name);
         
         row.innerHTML = `
-            <td>${group.name || 'Unnamed'}</td>
+            <td><strong>${group.name || 'Unnamed'}</strong></td>
             <td>${group.category || 'N/A'}</td>
-            <td><a href="${group.link}" target="_blank" style="color: #25D366;">View Link</a></td>
+            <td><a href="${link}" target="_blank" style="color: #25D366; text-decoration: none;" onclick="event.stopPropagation()">🔗 View Link</a></td>
             <td>${date}</td>
             <td class="admin-actions">
                 <button class="btn-approve" onclick="approveGroup('${group.id}')" title="Approve"><i class="fas fa-check"></i> Approve</button>
@@ -184,15 +284,19 @@ function displayPendingGroups() {
             </td>
         `;
     });
+    
+    console.log('✅ Pending groups displayed');
 }
 
 // Approve group
 function approveGroup(id) {
-    if (confirm('Approve this group? It will be visible on the website.')) {
+    if (confirm('✅ Approve this group? It will be visible on the website.')) {
         database.ref('groups/' + id).update({ 
             status: 'approved' 
         }).then(() => {
             showNotification('Group approved successfully!', 'success');
+            // Refresh the list
+            setTimeout(() => loadGroups(), 500);
         }).catch(error => {
             showNotification('Error: ' + error.message, 'error');
         });
@@ -201,11 +305,12 @@ function approveGroup(id) {
 
 // Reject group
 function rejectGroup(id) {
-    if (confirm('Reject this group? It will not be shown on the website.')) {
+    if (confirm('❌ Reject this group? It will not be shown on the website.')) {
         database.ref('groups/' + id).update({ 
             status: 'rejected' 
         }).then(() => {
             showNotification('Group rejected', 'info');
+            setTimeout(() => loadGroups(), 500);
         }).catch(error => {
             showNotification('Error: ' + error.message, 'error');
         });
@@ -225,7 +330,7 @@ function displayAllGroups() {
     const categoryFilter = document.getElementById('filterCategory')?.value || '';
     const statusFilter = document.getElementById('filterStatus')?.value || '';
     
-    let filtered = groups;
+    let filtered = groups.filter(g => g); // Remove null/undefined
     
     // Apply search filter
     if (search) {
@@ -246,7 +351,7 @@ function displayAllGroups() {
     }
     
     if (filtered.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">No groups match filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 30px;">No groups match filters</td></tr>';
         return;
     }
     
@@ -284,6 +389,7 @@ function deleteGroup(id) {
         database.ref('groups/' + id).remove()
             .then(() => {
                 showNotification('Group deleted successfully', 'success');
+                setTimeout(() => loadGroups(), 500);
             })
             .catch(error => {
                 showNotification('Error: ' + error.message, 'error');
@@ -297,6 +403,7 @@ function makeFeatured(id) {
         featured: true 
     }).then(() => {
         showNotification('Group marked as featured!', 'success');
+        setTimeout(() => loadGroups(), 500);
     });
 }
 
@@ -306,6 +413,7 @@ function removeFeatured(id) {
         featured: false 
     }).then(() => {
         showNotification('Featured removed', 'info');
+        setTimeout(() => loadGroups(), 500);
     });
 }
 
@@ -315,7 +423,7 @@ function removeFeatured(id) {
 
 // Edit group
 function editGroup(id) {
-    const group = groups.find(g => g.id === id);
+    const group = groups.find(g => g && g.id === id);
     if (!group) return;
     
     document.getElementById('editGroupId').value = group.id;
@@ -336,7 +444,7 @@ function updateGroup(event) {
     
     const groupId = document.getElementById('editGroupId').value;
     const categoryId = document.getElementById('editGroupCategory').value;
-    const category = categories.find(c => c.id === categoryId);
+    const category = categories.find(c => c && c.id === categoryId);
     
     const updatedData = {
         name: document.getElementById('editGroupName').value,
@@ -353,6 +461,7 @@ function updateGroup(event) {
         .then(() => {
             closeModal();
             showNotification('Group updated successfully!', 'success');
+            setTimeout(() => loadGroups(), 500);
         })
         .catch(error => {
             showNotification('Error: ' + error.message, 'error');
@@ -374,13 +483,14 @@ function displayCategories() {
     if (!tbody) return;
     
     if (categories.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No categories found. Add your first category!</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px;">No categories found. Add your first category!</td></tr>';
         return;
     }
     
     tbody.innerHTML = '';
     categories.forEach(cat => {
-        const groupCount = groups.filter(g => g.categoryId === cat.id).length;
+        if (!cat) return;
+        const groupCount = groups.filter(g => g && g.categoryId === cat.id).length;
         
         const row = tbody.insertRow();
         row.innerHTML = `
@@ -423,7 +533,7 @@ function addCategory() {
 // Delete category
 function deleteCategory(id) {
     // Check if category has groups
-    const hasGroups = groups.some(g => g.categoryId === id);
+    const hasGroups = groups.some(g => g && g.categoryId === id);
     
     if (hasGroups) {
         if (!confirm('⚠️ This category has groups. Deleting it will remove category from those groups. Continue?')) {
@@ -446,7 +556,6 @@ function deleteCategory(id) {
 
 // Update category counts
 function updateCategoryCounts() {
-    // This is just for display, counts are calculated in displayCategories
     displayCategories();
 }
 
@@ -460,12 +569,13 @@ function displayReports() {
     if (!tbody) return;
     
     if (reports.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center;">No reports found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; padding: 30px;">No reports found</td></tr>';
         return;
     }
     
     tbody.innerHTML = '';
     reports.forEach(report => {
+        if (!report) return;
         const row = tbody.insertRow();
         const date = report.createdAt ? new Date(report.createdAt).toLocaleDateString() : 'N/A';
         
@@ -518,7 +628,9 @@ function populateCategoryFilters() {
     
     filterCat.innerHTML = '<option value="">All Categories</option>';
     categories.forEach(cat => {
-        filterCat.innerHTML += `<option value="${cat.id}">${cat.icon || '📌'} ${cat.name}</option>`;
+        if (cat) {
+            filterCat.innerHTML += `<option value="${cat.id}">${cat.icon || '📌'} ${cat.name}</option>`;
+        }
     });
 }
 
@@ -529,7 +641,9 @@ function populateEditCategorySelect() {
     
     editCat.innerHTML = '';
     categories.forEach(cat => {
-        editCat.innerHTML += `<option value="${cat.id}">${cat.icon || '📌'} ${cat.name}</option>`;
+        if (cat) {
+            editCat.innerHTML += `<option value="${cat.id}">${cat.icon || '📌'} ${cat.name}</option>`;
+        }
     });
 }
 
@@ -557,7 +671,7 @@ function updateChart() {
         dates.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
         
         const dayGroups = groups.filter(g => {
-            if (!g.createdAt) return false;
+            if (!g || !g.createdAt) return false;
             const groupDate = new Date(g.createdAt);
             return groupDate >= date && groupDate < nextDate;
         }).length;
@@ -610,7 +724,7 @@ function saveSettings() {
     };
     
     localStorage.setItem('adminSettings', JSON.stringify(settings));
-    showNotification('Settings saved! (Note: Admin password change requires login page update)', 'success');
+    showNotification('Settings saved!', 'success');
 }
 
 // Clear all data
@@ -621,6 +735,7 @@ function clearAllData() {
             database.ref().remove()
                 .then(() => {
                     showNotification('All data cleared! Refresh the page.', 'warning');
+                    setTimeout(() => location.reload(), 2000);
                 })
                 .catch(error => {
                     showNotification('Error: ' + error.message, 'error');
@@ -654,7 +769,10 @@ function showSection(section) {
     document.getElementById(section + '-section').classList.add('active');
     
     // Refresh data if needed
-    if (section === 'pending') displayPendingGroups();
+    if (section === 'pending') {
+        console.log('📋 Showing pending section');
+        displayPendingGroups();
+    }
     if (section === 'allgroups') displayAllGroups();
     if (section === 'categories') displayCategories();
     if (section === 'reports') displayReports();
@@ -752,6 +870,27 @@ style.textContent = `
         transform: translateY(-2px);
         opacity: 0.9;
     }
+    
+    .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    
+    .status-approved {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-rejected {
+        background: #f8d7da;
+        color: #721c24;
+    }
 `;
 document.head.appendChild(style);
-
