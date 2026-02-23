@@ -8,10 +8,11 @@ let categories = [];
 let groups = [];
 let reports = [];
 let chart = null;
+let dataLoaded = false;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Admin panel loaded - FIXED VERSION');
+    console.log('🚀 Admin panel loading...');
     
     // Check if Firebase is initialized
     if (typeof database === 'undefined') {
@@ -20,88 +21,66 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
-    console.log('✅ Firebase connected successfully');
+    console.log('✅ Firebase connected');
     
-    // Load data from Firebase
-    loadCategories();
-    loadGroups();
-    loadReports();
+    // Load data ONE TIME only
+    loadAllData();
     
-    // Load settings
-    loadSettings();
+    // Setup simple refresh button
+    setupRefreshButton();
 });
 
-// ============================================
-// FIXED SHOW SECTION FUNCTION - NO EVENT ERROR
-// ============================================
-function showSection(section) {
-    console.log('📂 Switching to section:', section);
+// Load all data once
+function loadAllData() {
+    showLoading(true);
     
-    // Remove active class from ALL sidebar menu items
-    document.querySelectorAll('.admin-sidebar-menu li').forEach(li => {
-        li.classList.remove('active');
+    Promise.all([
+        loadCategoriesOnce(),
+        loadGroupsOnce(),
+        loadReportsOnce()
+    ]).then(() => {
+        dataLoaded = true;
+        showLoading(false);
+        console.log('✅ All data loaded successfully');
+    }).catch(error => {
+        console.error('Error loading data:', error);
+        showNotification('Error loading data', 'error');
+        showLoading(false);
     });
-
-    // Find the clicked menu item and add active class
-    const menuItems = document.querySelectorAll('.admin-sidebar-menu li');
-    for (let i = 0; i < menuItems.length; i++) {
-        const li = menuItems[i];
-        const onclickAttr = li.getAttribute('onclick') || '';
-        if (onclickAttr.includes("'" + section + "'") || onclickAttr.includes('"' + section + '"')) {
-            li.classList.add('active');
-            break;
-        }
-    }
-
-    // Hide ALL sections
-    document.querySelectorAll('.admin-section').forEach(s => {
-        s.classList.remove('active');
-    });
-
-    // Show the selected section
-    const targetSection = document.getElementById(section + '-section');
-    if (targetSection) {
-        targetSection.classList.add('active');
-        console.log('✅ Section activated:', section);
-    } else {
-        console.error('❌ Section not found:', section + '-section');
-    }
-
-    // Refresh data for the section
-    if (section === 'pending') {
-        console.log('🔄 Refreshing pending groups...');
-        displayPendingGroups();
-    }
-    if (section === 'allgroups') {
-        console.log('🔄 Refreshing all groups...');
-        displayAllGroups();
-    }
-    if (section === 'categories') {
-        console.log('🔄 Refreshing categories...');
-        displayCategories();
-    }
-    if (section === 'reports') {
-        console.log('🔄 Refreshing reports...');
-        displayReports();
-    }
-    if (section === 'dashboard') {
-        console.log('🔄 Refreshing dashboard...');
-        updateStats();
-        updateChart();
-    }
-    if (section === 'settings') {
-        console.log('🔄 Loading settings...');
-        loadSettings();
-    }
 }
 
-// ============================================
-// FIREBASE DATA LOADING FUNCTIONS
-// ============================================
+// Show/hide loading
+function showLoading(show) {
+    const loader = document.getElementById('loadingOverlay') || createLoadingOverlay();
+    loader.style.display = show ? 'flex' : 'none';
+}
 
-// Load categories from Firebase
-function loadCategories() {
-    database.ref('categories').on('value', (snapshot) => {
+// Create loading overlay
+function createLoadingOverlay() {
+    const overlay = document.createElement('div');
+    overlay.id = 'loadingOverlay';
+    overlay.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255,255,255,0.9);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        font-size: 18px;
+        color: #333;
+    `;
+    overlay.innerHTML = '<i class="fas fa-spinner fa-spin" style="margin-right: 10px;"></i> Loading...';
+    document.body.appendChild(overlay);
+    return overlay;
+}
+
+// Load categories once
+function loadCategoriesOnce() {
+    return database.ref('categories').once('value').then((snapshot) => {
         categories = [];
         snapshot.forEach((childSnapshot) => {
             categories.push({
@@ -109,25 +88,16 @@ function loadCategories() {
                 ...childSnapshot.val()
             });
         });
-        
         console.log('📂 Categories loaded:', categories.length);
-        
-        // Update UI
         displayCategories();
         populateCategoryFilters();
         populateEditCategorySelect();
-        updateStats();
-    }, (error) => {
-        console.error('Error loading categories:', error);
-        showNotification('Error loading categories', 'error');
     });
 }
 
-// Load groups from Firebase
-function loadGroups() {
-    console.log('📥 Loading groups from Firebase...');
-    
-    database.ref('groups').once('value', (snapshot) => {
+// Load groups once - OPTIMIZED
+function loadGroupsOnce() {
+    return database.ref('groups').once('value').then((snapshot) => {
         groups = [];
         snapshot.forEach((childSnapshot) => {
             groups.push({
@@ -138,12 +108,7 @@ function loadGroups() {
         
         console.log('📊 Groups loaded:', groups.length);
         
-        // Log status counts
-        const pendingCount = groups.filter(g => g && g.status === 'pending').length;
-        const approvedCount = groups.filter(g => g && g.status === 'approved').length;
-        console.log(`📊 Status: Pending: ${pendingCount}, Approved: ${approvedCount}`);
-        
-        // Update all UI sections
+        // Update UI
         updateStats();
         displayRecentGroups();
         displayPendingGroups();
@@ -151,22 +116,15 @@ function loadGroups() {
         updateCategoryCounts();
         updateChart();
         
-        // Update pending count badge
+        // Update pending count
+        const pendingCount = groups.filter(g => g && g.status === 'pending').length;
         document.getElementById('pendingCount').textContent = pendingCount;
-    }, (error) => {
-        console.error('Error loading groups:', error);
-        showNotification('Error loading groups', 'error');
     });
-    
-    // Set up real-time listeners
-    database.ref('groups').on('child_changed', () => loadGroups());
-    database.ref('groups').on('child_added', () => loadGroups());
-    database.ref('groups').on('child_removed', () => loadGroups());
 }
 
-// Load reports from Firebase
-function loadReports() {
-    database.ref('reports').once('value', (snapshot) => {
+// Load reports once
+function loadReportsOnce() {
+    return database.ref('reports').once('value').then((snapshot) => {
         reports = [];
         snapshot.forEach((childSnapshot) => {
             reports.push({
@@ -174,17 +132,84 @@ function loadReports() {
                 ...childSnapshot.val()
             });
         });
-        
         displayReports();
         document.getElementById('reportsCount').textContent = reports.length;
         updateStats();
-    }, (error) => {
-        console.error('Error loading reports:', error);
     });
+}
+
+// Manual refresh function
+function refreshData() {
+    showLoading(true);
+    Promise.all([
+        loadCategoriesOnce(),
+        loadGroupsOnce(),
+        loadReportsOnce()
+    ]).then(() => {
+        showLoading(false);
+        showNotification('Data refreshed!', 'success');
+    }).catch(error => {
+        showLoading(false);
+        showNotification('Error refreshing data', 'error');
+    });
+}
+
+// Setup refresh button
+function setupRefreshButton() {
+    const refreshBtn = document.createElement('button');
+    refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh Data';
+    refreshBtn.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: #25D366;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 50px;
+        cursor: pointer;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+        z-index: 1000;
+        font-size: 14px;
+    `;
+    refreshBtn.onclick = refreshData;
+    document.body.appendChild(refreshBtn);
+}
+
+// ============================================
+// FIXED SHOW SECTION FUNCTION
+// ============================================
+function showSection(section) {
+    console.log('📂 Switching to section:', section);
     
-    // Real-time updates for reports
-    database.ref('reports').on('child_added', () => loadReports());
-    database.ref('reports').on('child_removed', () => loadReports());
+    // Update active menu
+    document.querySelectorAll('.admin-sidebar-menu li').forEach(li => {
+        li.classList.remove('active');
+        if (li.getAttribute('onclick')?.includes("'" + section + "'")) {
+            li.classList.add('active');
+        }
+    });
+
+    // Hide all sections
+    document.querySelectorAll('.admin-section').forEach(s => {
+        s.classList.remove('active');
+    });
+
+    // Show selected section
+    const targetSection = document.getElementById(section + '-section');
+    if (targetSection) {
+        targetSection.classList.add('active');
+    }
+
+    // Refresh section data if needed (without loading)
+    if (section === 'pending') displayPendingGroups();
+    if (section === 'allgroups') displayAllGroups();
+    if (section === 'categories') displayCategories();
+    if (section === 'reports') displayReports();
+    if (section === 'dashboard') {
+        updateStats();
+        updateChart();
+    }
 }
 
 // ============================================
@@ -246,18 +271,13 @@ function displayRecentGroups() {
 
 // Display pending groups
 function displayPendingGroups() {
-    console.log('🔍 Displaying pending groups...');
-    
     const tbody = document.getElementById('pendingGroupsBody');
-    if (!tbody) {
-        console.error('❌ pendingGroupsBody not found!');
-        return;
-    }
+    if (!tbody) return;
     
     const pending = groups.filter(g => g && g.status === 'pending');
     
     if (pending.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 30px;">⏳ No pending groups found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">⏳ No pending groups</td></tr>';
         return;
     }
     
@@ -278,14 +298,11 @@ function displayPendingGroups() {
             </td>
         `;
     });
-    
-    console.log(`✅ Displayed ${pending.length} pending groups`);
 }
 
-// Force refresh pending groups
+// Force refresh
 function forceRefreshPending() {
-    console.log('🔄 Force refreshing pending groups...');
-    loadGroups();
+    refreshData();
 }
 
 // Check Firebase directly
@@ -311,11 +328,11 @@ function checkFirebaseDirectly() {
 
 // Approve group
 function approveGroup(id) {
-    if (confirm('✅ Approve this group? It will be visible on the website.')) {
+    if (confirm('✅ Approve this group?')) {
         database.ref('groups/' + id).update({ status: 'approved' })
             .then(() => {
-                showNotification('Group approved successfully!', 'success');
-                loadGroups();
+                showNotification('Group approved!', 'success');
+                refreshData();
             })
             .catch(error => showNotification('Error: ' + error.message, 'error'));
     }
@@ -323,11 +340,11 @@ function approveGroup(id) {
 
 // Reject group
 function rejectGroup(id) {
-    if (confirm('❌ Reject this group? It will not be shown.')) {
+    if (confirm('❌ Reject this group?')) {
         database.ref('groups/' + id).update({ status: 'rejected' })
             .then(() => {
                 showNotification('Group rejected', 'info');
-                loadGroups();
+                refreshData();
             })
             .catch(error => showNotification('Error: ' + error.message, 'error'));
     }
@@ -337,7 +354,7 @@ function rejectGroup(id) {
 // ALL GROUPS FUNCTIONS
 // ============================================
 
-// Display all groups with filters
+// Display all groups
 function displayAllGroups() {
     const tbody = document.getElementById('allGroupsBody');
     if (!tbody) return;
@@ -397,11 +414,11 @@ function applyFilters() {
 
 // Delete group
 function deleteGroup(id) {
-    if (confirm('⚠️ Delete this group? This cannot be undone!')) {
+    if (confirm('⚠️ Delete this group?')) {
         database.ref('groups/' + id).remove()
             .then(() => {
                 showNotification('Group deleted', 'info');
-                loadGroups();
+                refreshData();
             })
             .catch(error => showNotification('Error: ' + error.message, 'error'));
     }
@@ -411,8 +428,8 @@ function deleteGroup(id) {
 function makeFeatured(id) {
     database.ref('groups/' + id).update({ featured: true })
         .then(() => {
-            showNotification('Group marked as featured!', 'success');
-            loadGroups();
+            showNotification('Group featured!', 'success');
+            refreshData();
         })
         .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
@@ -422,7 +439,7 @@ function removeFeatured(id) {
     database.ref('groups/' + id).update({ featured: false })
         .then(() => {
             showNotification('Featured removed', 'info');
-            loadGroups();
+            refreshData();
         })
         .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
@@ -470,8 +487,8 @@ function updateGroup(event) {
     database.ref('groups/' + groupId).update(updatedData)
         .then(() => {
             closeModal();
-            showNotification('Group updated successfully!', 'success');
-            loadGroups();
+            showNotification('Group updated!', 'success');
+            refreshData();
         })
         .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
@@ -491,7 +508,7 @@ function displayCategories() {
     if (!tbody) return;
     
     if (categories.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4">No categories found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4">No categories</td></tr>';
         return;
     }
     
@@ -526,6 +543,7 @@ function addCategory() {
             document.getElementById('catName').value = '';
             document.getElementById('catIcon').value = '';
             showNotification('Category added!', 'success');
+            refreshData();
         })
         .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
@@ -534,7 +552,10 @@ function addCategory() {
 function deleteCategory(id) {
     if (confirm('Delete this category?')) {
         database.ref('categories/' + id).remove()
-            .then(() => showNotification('Category deleted', 'info'))
+            .then(() => {
+                showNotification('Category deleted', 'info');
+                refreshData();
+            })
             .catch(error => showNotification('Error: ' + error.message, 'error'));
     }
 }
@@ -554,7 +575,7 @@ function displayReports() {
     if (!tbody) return;
     
     if (reports.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4">No reports found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="4">No reports</td></tr>';
         return;
     }
     
@@ -578,14 +599,20 @@ function displayReports() {
 // Resolve report
 function resolveReport(id) {
     database.ref('reports/' + id).remove()
-        .then(() => showNotification('Report resolved', 'success'))
+        .then(() => {
+            showNotification('Report resolved', 'success');
+            refreshData();
+        })
         .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
 
 // Delete report
 function deleteReport(id) {
     database.ref('reports/' + id).remove()
-        .then(() => showNotification('Report deleted', 'info'))
+        .then(() => {
+            showNotification('Report deleted', 'info');
+            refreshData();
+        })
         .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
 
@@ -632,15 +659,12 @@ function updateChart() {
         date.setDate(date.getDate() - i);
         date.setHours(0, 0, 0, 0);
         
-        const nextDate = new Date(date);
-        nextDate.setDate(nextDate.getDate() + 1);
-        
         dates.push(date.toLocaleDateString('en-US', { weekday: 'short' }));
         
         const dayGroups = groups.filter(g => {
             if (!g || !g.createdAt) return false;
             const groupDate = new Date(g.createdAt);
-            return groupDate >= date && groupDate < nextDate;
+            return groupDate >= date && groupDate < new Date(date.getTime() + 86400000);
         }).length;
         
         counts.push(dayGroups);
@@ -673,18 +697,6 @@ function updateChart() {
 // SETTINGS FUNCTIONS
 // ============================================
 
-// Load settings
-function loadSettings() {
-    const saved = localStorage.getItem('adminSettings');
-    if (saved) {
-        const settings = JSON.parse(saved);
-        document.getElementById('adminUser').value = settings.adminUser || 'groupmela';
-        document.getElementById('adminPass').value = settings.adminPass || 'admin@123';
-        document.getElementById('siteName').value = settings.siteName || 'GroupMela';
-        document.getElementById('adminEmail').value = settings.adminEmail || 'admin@groupmela.com';
-    }
-}
-
 // Save settings
 function saveSettings() {
     const settings = {
@@ -700,7 +712,7 @@ function saveSettings() {
 
 // Clear all data
 function clearAllData() {
-    if (confirm('⚠️ WARNING: This will DELETE ALL data! Are you sure?')) {
+    if (confirm('⚠️ DELETE ALL DATA?')) {
         if (prompt('Type "DELETE" to confirm') === 'DELETE') {
             database.ref().remove()
                 .then(() => {
@@ -760,17 +772,13 @@ function toggleSidebar() {
 
 // Logout
 function logout() {
-    if (confirm('Are you sure you want to logout?')) {
+    if (confirm('Logout?')) {
         sessionStorage.removeItem('adminLoggedIn');
         window.location.href = 'index.html';
     }
 }
 
-// ============================================
-// STYLES
-// ============================================
-
-// Add animation styles
+// Add styles
 const style = document.createElement('style');
 style.textContent = `
     @keyframes slideIn {
@@ -793,17 +801,9 @@ style.textContent = `
         color: white;
     }
     
-    .btn-approve:hover {
-        background: #218838;
-    }
-    
     .btn-reject {
         background: #dc3545;
         color: white;
-    }
-    
-    .btn-reject:hover {
-        background: #c82333;
     }
     
     .btn-edit {
@@ -811,24 +811,15 @@ style.textContent = `
         color: #333;
     }
     
-    .btn-edit:hover {
-        background: #e0a800;
-    }
-    
     .btn-delete {
         background: #dc3545;
         color: white;
-    }
-    
-    .btn-delete:hover {
-        background: #c82333;
     }
     
     .status-badge {
         padding: 3px 8px;
         border-radius: 4px;
         font-size: 12px;
-        display: inline-block;
     }
     
     .status-approved {
@@ -847,4 +838,3 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-
