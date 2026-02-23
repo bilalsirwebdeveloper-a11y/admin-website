@@ -838,7 +838,5 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
-.chart-wrapper {
-    height: 300px;
-    position: relative;
-}
+
+
