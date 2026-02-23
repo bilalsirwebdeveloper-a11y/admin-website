@@ -1,5 +1,5 @@
 // ============================================
-// FIREBASE REFERENCE - YEH LINE SABSE IMPORTANT
+// FIREBASE REFERENCE - YE LINE ADD KI GAYI HAI
 // ============================================
 const database = firebase.database();
 
@@ -16,7 +16,7 @@ let chart = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Admin panel loaded - FIXED VERSION');
+    console.log('🚀 Admin panel loaded - FIXED VERSION WITH FIREBASE');
     
     // Check if Firebase is initialized
     if (typeof database === 'undefined') {
@@ -31,7 +31,46 @@ document.addEventListener('DOMContentLoaded', function() {
     loadCategories();
     loadGroups();
     loadReports();
+    
+    // Setup click handlers for all buttons
+    setupButtonHandlers();
 });
+
+// ============================================
+// SETUP BUTTON HANDLERS
+// ============================================
+function setupButtonHandlers() {
+    // Fix for all approve/reject/edit/delete buttons
+    document.addEventListener('click', function(e) {
+        // Handle approve button
+        if (e.target.classList.contains('btn-approve') || e.target.closest('.btn-approve')) {
+            const btn = e.target.closest('.btn-approve');
+            const groupId = btn.getAttribute('data-id') || btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+            if (groupId) approveGroup(groupId);
+        }
+        
+        // Handle reject button
+        if (e.target.classList.contains('btn-reject') || e.target.closest('.btn-reject')) {
+            const btn = e.target.closest('.btn-reject');
+            const groupId = btn.getAttribute('data-id') || btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+            if (groupId) rejectGroup(groupId);
+        }
+        
+        // Handle edit button
+        if (e.target.classList.contains('btn-edit') || e.target.closest('.btn-edit')) {
+            const btn = e.target.closest('.btn-edit');
+            const groupId = btn.getAttribute('data-id') || btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+            if (groupId) editGroup(groupId);
+        }
+        
+        // Handle delete button
+        if (e.target.classList.contains('btn-delete') || e.target.closest('.btn-delete')) {
+            const btn = e.target.closest('.btn-delete');
+            const groupId = btn.getAttribute('data-id') || btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+            if (groupId) deleteGroup(groupId);
+        }
+    });
+}
 
 // ============================================
 // FIREBASE DATA LOADING FUNCTIONS
@@ -91,10 +130,10 @@ function loadGroups() {
         // Update pending count badge
         document.getElementById('pendingCount').textContent = pendingCount;
         
-        alert(`Loaded ${groups.length} groups (${pendingCount} pending)`);
+        alert(`✅ Loaded ${groups.length} groups (${pendingCount} pending)`);
     }, (error) => {
         console.error('Error loading groups:', error);
-        alert('Error loading groups: ' + error.message);
+        alert('❌ Error loading groups: ' + error.message);
     });
     
     // Also set up listener for real-time updates
