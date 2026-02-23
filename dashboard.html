@@ -10,34 +10,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Basic Functions for Menu -->
-    <script>
-    function showSection(section) {
-        document.querySelectorAll(".admin-section").forEach(el => {
-            el.classList.remove("active");
-        });
-
-        let target = document.getElementById(section + "-section");
-        if (target) {
-            target.classList.add("active");
-        }
-    }
-
-    function toggleSidebar() {
-        document.getElementById("adminSidebar").classList.toggle("active");
-    }
-
-    function logout() {
-        if (confirm('Are you sure you want to logout?')) {
-            sessionStorage.removeItem('adminLoggedIn');
-            window.location.href = 'index.html';
-        }
-    }
-
-    function closeModal() {
-        document.getElementById("editModal").style.display = "none";
-    }
-    </script>
 </head>
 <body>
     <div class="admin-wrapper">
@@ -159,7 +131,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="recentGroupsBody">
-                                    <tr><td colspan="5">Loading...</td></tr>
+                                    <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
                                 </tbody>
                             </table>
                         </div>
@@ -170,16 +142,13 @@
                 <div id="pending-section" class="admin-section">
                     <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <h1 class="admin-page-title" style="margin-bottom: 0;">Pending Groups</h1>
-                        <button onclick="forceRefreshPending()" 
-                                style="background: #25D366; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <button onclick="forceRefreshPending()" class="admin-btn" style="background: #25D366;">
                             <i class="fas fa-sync-alt"></i> Force Refresh
                         </button>
-                        <button onclick="loadGroups()" 
-                                style="background: #ffc107; color: black; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <button onclick="loadGroups()" class="admin-btn" style="background: #ffc107; color: black;">
                             <i class="fas fa-database"></i> Reload Data
                         </button>
-                        <button onclick="checkFirebaseDirectly()" 
-                                style="background: #17a2b8; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <button onclick="checkFirebaseDirectly()" class="admin-btn" style="background: #17a2b8;">
                             <i class="fas fa-search"></i> Check Firebase
                         </button>
                     </div>
@@ -196,7 +165,7 @@
                                 </tr>
                             </thead>
                             <tbody id="pendingGroupsBody">
-                                <tr><td colspan="5">Loading...</td></tr>
+                                <tr><td colspan="5" style="text-align: center;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -206,8 +175,7 @@
                 <div id="allgroups-section" class="admin-section">
                     <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <h1 class="admin-page-title" style="margin-bottom: 0;">All Groups</h1>
-                        <button onclick="loadGroups()" 
-                                style="background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <button onclick="loadGroups()" class="admin-btn" style="background: #6c757d;">
                             <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
@@ -240,7 +208,7 @@
                                 </tr>
                             </thead>
                             <tbody id="allGroupsBody">
-                                <tr><td colspan="7">Loading...</td></tr>
+                                <tr><td colspan="7" style="text-align: center;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -250,8 +218,7 @@
                 <div id="categories-section" class="admin-section">
                     <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <h1 class="admin-page-title" style="margin-bottom: 0;">Categories</h1>
-                        <button onclick="loadCategories()" 
-                                style="background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <button onclick="loadCategories()" class="admin-btn" style="background: #6c757d;">
                             <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
@@ -276,7 +243,7 @@
                                 </tr>
                             </thead>
                             <tbody id="categoriesBody">
-                                <tr><td colspan="4">Loading...</td></tr>
+                                <tr><td colspan="4" style="text-align: center;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -286,8 +253,7 @@
                 <div id="reports-section" class="admin-section">
                     <div style="margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
                         <h1 class="admin-page-title" style="margin-bottom: 0;">Broken Link Reports</h1>
-                        <button onclick="loadReports()" 
-                                style="background: #6c757d; color: white; border: none; padding: 8px 20px; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px;">
+                        <button onclick="loadReports()" class="admin-btn" style="background: #6c757d;">
                             <i class="fas fa-sync-alt"></i> Refresh
                         </button>
                     </div>
@@ -303,7 +269,7 @@
                                 </tr>
                             </thead>
                             <tbody id="reportsBody">
-                                <tr><td colspan="4">Loading...</td></tr>
+                                <tr><td colspan="4" style="text-align: center;">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -401,7 +367,7 @@
         </div>
     </div>
 
-    <!-- Firebase Config - Direct in HTML -->
+    <!-- Firebase Config -->
     <script>
     // Firebase Configuration
     const firebaseConfig = {
@@ -427,4 +393,3 @@
     <script src="script.js"></script>
 </body>
 </html>
-
