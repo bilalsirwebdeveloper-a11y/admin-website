@@ -10,34 +10,6 @@
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Basic Functions for Menu -->
-    <script>
-    function showSection(section) {
-        document.querySelectorAll(".admin-section").forEach(el => {
-            el.classList.remove("active");
-        });
-
-        let target = document.getElementById(section + "-section");
-        if (target) {
-            target.classList.add("active");
-        }
-    }
-
-    function toggleSidebar() {
-        document.getElementById("adminSidebar").classList.toggle("active");
-    }
-
-    function logout() {
-        if (confirm('Are you sure you want to logout?')) {
-            sessionStorage.removeItem('adminLoggedIn');
-            window.location.href = 'index.html';
-        }
-    }
-
-    function closeModal() {
-        document.getElementById("editModal").style.display = "none";
-    }
-    </script>
 </head>
 <body>
     <div class="admin-wrapper">
@@ -50,24 +22,24 @@
             </div>
             
             <ul class="admin-sidebar-menu">
-                <li class="active" onclick="showSection('dashboard')">
+                <li class="active" onclick="showSection('dashboard', this)">
                     <i class="fas fa-tachometer-alt"></i> Dashboard
                 </li>
-                <li onclick="showSection('pending')">
+                <li onclick="showSection('pending', this)">
                     <i class="fas fa-clock"></i> Pending Groups
                     <span class="admin-badge" id="pendingCount">0</span>
                 </li>
-                <li onclick="showSection('allgroups')">
+                <li onclick="showSection('allgroups', this)">
                     <i class="fas fa-list"></i> All Groups
                 </li>
-                <li onclick="showSection('categories')">
+                <li onclick="showSection('categories', this)">
                     <i class="fas fa-tags"></i> Categories
                 </li>
-                <li onclick="showSection('reports')">
+                <li onclick="showSection('reports', this)">
                     <i class="fas fa-flag"></i> Reports
                     <span class="admin-badge" id="reportsCount">0</span>
                 </li>
-                <li onclick="showSection('settings')">
+                <li onclick="showSection('settings', this)">
                     <i class="fas fa-cog"></i> Settings
                 </li>
                 <li onclick="logout()">
@@ -401,7 +373,7 @@
         </div>
     </div>
 
-    <!-- Firebase Config - Direct in HTML -->
+    <!-- Firebase Configuration - Direct in HTML -->
     <script>
     // Firebase Configuration
     const firebaseConfig = {
@@ -424,6 +396,63 @@
     console.log('🔥 Firebase initialized successfully!');
     </script>
     
+    <!-- Main Admin Script -->
     <script src="script.js"></script>
+    
+    <!-- Fix for section switching -->
+    <script>
+    function showSection(section, element) {
+        // Saari sections hide karo
+        document.querySelectorAll(".admin-section").forEach(el => {
+            el.classList.remove("active");
+        });
+        
+        // Menu se active class hatao
+        document.querySelectorAll(".admin-sidebar-menu li").forEach(li => {
+            li.classList.remove("active");
+        });
+        
+        // Current clicked menu item ko active karo
+        if (element) {
+            element.classList.add("active");
+        }
+        
+        // Target section dikhao
+        let target = document.getElementById(section + "-section");
+        if (target) {
+            target.classList.add("active");
+            
+            // Agar pending section hai to data refresh karo
+            if (section === 'pending' && typeof displayPendingGroups === 'function') {
+                displayPendingGroups();
+            }
+            if (section === 'allgroups' && typeof displayAllGroups === 'function') {
+                displayAllGroups();
+            }
+            if (section === 'categories' && typeof displayCategories === 'function') {
+                displayCategories();
+            }
+            if (section === 'reports' && typeof displayReports === 'function') {
+                displayReports();
+            }
+        }
+    }
+
+    function toggleSidebar() {
+        document.getElementById("adminSidebar").classList.toggle("collapsed");
+        document.querySelector(".admin-main").classList.toggle("expanded");
+    }
+
+    function logout() {
+        if (confirm('Are you sure you want to logout?')) {
+            sessionStorage.removeItem('adminLoggedIn');
+            window.location.href = 'index.html';
+        }
+    }
+
+    function closeModal() {
+        document.getElementById("editModal").classList.remove("show");
+    }
+    </script>
 </body>
 </html>
