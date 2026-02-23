@@ -21,51 +21,78 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     console.log('✅ Firebase connected successfully');
-    showNotification('Firebase connected!', 'success');
     
     // Load data from Firebase
     loadCategories();
     loadGroups();
     loadReports();
     
-    // Setup click handlers for all buttons
-    setupButtonHandlers();
+    // Load settings
+    loadSettings();
 });
 
 // ============================================
-// SETUP BUTTON HANDLERS
+// FIXED SHOW SECTION FUNCTION - NO EVENT ERROR
 // ============================================
-function setupButtonHandlers() {
-    // Fix for all approve/reject/edit/delete buttons
-    document.addEventListener('click', function(e) {
-        // Handle approve button
-        if (e.target.classList.contains('btn-approve') || e.target.closest('.btn-approve')) {
-            const btn = e.target.closest('.btn-approve');
-            const groupId = btn.getAttribute('data-id') || btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
-            if (groupId) approveGroup(groupId);
-        }
-        
-        // Handle reject button
-        if (e.target.classList.contains('btn-reject') || e.target.closest('.btn-reject')) {
-            const btn = e.target.closest('.btn-reject');
-            const groupId = btn.getAttribute('data-id') || btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
-            if (groupId) rejectGroup(groupId);
-        }
-        
-        // Handle edit button
-        if (e.target.classList.contains('btn-edit') || e.target.closest('.btn-edit')) {
-            const btn = e.target.closest('.btn-edit');
-            const groupId = btn.getAttribute('data-id') || btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
-            if (groupId) editGroup(groupId);
-        }
-        
-        // Handle delete button
-        if (e.target.classList.contains('btn-delete') || e.target.closest('.btn-delete')) {
-            const btn = e.target.closest('.btn-delete');
-            const groupId = btn.getAttribute('data-id') || btn.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
-            if (groupId) deleteGroup(groupId);
-        }
+function showSection(section) {
+    console.log('📂 Switching to section:', section);
+    
+    // Remove active class from ALL sidebar menu items
+    document.querySelectorAll('.admin-sidebar-menu li').forEach(li => {
+        li.classList.remove('active');
     });
+
+    // Find the clicked menu item and add active class
+    const menuItems = document.querySelectorAll('.admin-sidebar-menu li');
+    for (let i = 0; i < menuItems.length; i++) {
+        const li = menuItems[i];
+        const onclickAttr = li.getAttribute('onclick') || '';
+        if (onclickAttr.includes("'" + section + "'") || onclickAttr.includes('"' + section + '"')) {
+            li.classList.add('active');
+            break;
+        }
+    }
+
+    // Hide ALL sections
+    document.querySelectorAll('.admin-section').forEach(s => {
+        s.classList.remove('active');
+    });
+
+    // Show the selected section
+    const targetSection = document.getElementById(section + '-section');
+    if (targetSection) {
+        targetSection.classList.add('active');
+        console.log('✅ Section activated:', section);
+    } else {
+        console.error('❌ Section not found:', section + '-section');
+    }
+
+    // Refresh data for the section
+    if (section === 'pending') {
+        console.log('🔄 Refreshing pending groups...');
+        displayPendingGroups();
+    }
+    if (section === 'allgroups') {
+        console.log('🔄 Refreshing all groups...');
+        displayAllGroups();
+    }
+    if (section === 'categories') {
+        console.log('🔄 Refreshing categories...');
+        displayCategories();
+    }
+    if (section === 'reports') {
+        console.log('🔄 Refreshing reports...');
+        displayReports();
+    }
+    if (section === 'dashboard') {
+        console.log('🔄 Refreshing dashboard...');
+        updateStats();
+        updateChart();
+    }
+    if (section === 'settings') {
+        console.log('🔄 Loading settings...');
+        loadSettings();
+    }
 }
 
 // ============================================
@@ -96,7 +123,7 @@ function loadCategories() {
     });
 }
 
-// Load groups from Firebase - FIXED VERSION
+// Load groups from Firebase
 function loadGroups() {
     console.log('📥 Loading groups from Firebase...');
     
@@ -126,28 +153,15 @@ function loadGroups() {
         
         // Update pending count badge
         document.getElementById('pendingCount').textContent = pendingCount;
-        
-        showNotification(`Loaded ${groups.length} groups`, 'success');
     }, (error) => {
         console.error('Error loading groups:', error);
         showNotification('Error loading groups', 'error');
     });
     
-    // Also set up listener for real-time updates
-    database.ref('groups').on('child_changed', () => {
-        console.log('🔄 Group changed, reloading...');
-        loadGroups();
-    });
-    
-    database.ref('groups').on('child_added', () => {
-        console.log('🔄 New group added, reloading...');
-        loadGroups();
-    });
-    
-    database.ref('groups').on('child_removed', () => {
-        console.log('🔄 Group removed, reloading...');
-        loadGroups();
-    });
+    // Set up real-time listeners
+    database.ref('groups').on('child_changed', () => loadGroups());
+    database.ref('groups').on('child_added', () => loadGroups());
+    database.ref('groups').on('child_removed', () => loadGroups());
 }
 
 // Load reports from Firebase
@@ -219,15 +233,15 @@ function displayRecentGroups() {
             <td><span class="status-badge status-${group.status || 'pending'}">${group.status || 'pending'}</span></td>
             <td>${date}</td>
             <td>
-                <button class="btn-edit" data-id="${group.id}" onclick="editGroup('${group.id}')">Edit</button>
-                <button class="btn-delete" data-id="${group.id}" onclick="deleteGroup('${group.id}')">Delete</button>
+                <button class="btn-edit" onclick="editGroup('${group.id}')">Edit</button>
+                <button class="btn-delete" onclick="deleteGroup('${group.id}')">Delete</button>
             </td>
         `;
     });
 }
 
 // ============================================
-// PENDING GROUPS FUNCTIONS - FIXED
+// PENDING GROUPS FUNCTIONS
 // ============================================
 
 // Display pending groups
@@ -258,9 +272,9 @@ function displayPendingGroups() {
             <td><a href="${group.link || '#'}" target="_blank">View Link</a></td>
             <td>${date}</td>
             <td>
-                <button class="btn-approve" data-id="${group.id}" onclick="approveGroup('${group.id}')">✅ Approve</button>
-                <button class="btn-reject" data-id="${group.id}" onclick="rejectGroup('${group.id}')">❌ Reject</button>
-                <button class="btn-edit" data-id="${group.id}" onclick="editGroup('${group.id}')">✏️ Edit</button>
+                <button class="btn-approve" onclick="approveGroup('${group.id}')">✅ Approve</button>
+                <button class="btn-reject" onclick="rejectGroup('${group.id}')">❌ Reject</button>
+                <button class="btn-edit" onclick="editGroup('${group.id}')">✏️ Edit</button>
             </td>
         `;
     });
@@ -365,11 +379,11 @@ function displayAllGroups() {
             <td><span class="status-badge status-${group.status || 'pending'}">${group.status || 'pending'}</span></td>
             <td>${group.featured ? '⭐ Yes' : 'No'}</td>
             <td>
-                <button class="btn-edit" data-id="${group.id}" onclick="editGroup('${group.id}')">Edit</button>
-                <button class="btn-delete" data-id="${group.id}" onclick="deleteGroup('${group.id}')">Delete</button>
+                <button class="btn-edit" onclick="editGroup('${group.id}')">Edit</button>
+                <button class="btn-delete" onclick="deleteGroup('${group.id}')">Delete</button>
                 ${!group.featured ? 
-                    '<button class="btn-approve" data-id="' + group.id + '" onclick="makeFeatured(\'' + group.id + '\')">Make Featured</button>' : 
-                    '<button class="btn-reject" data-id="' + group.id + '" onclick="removeFeatured(\'' + group.id + '\')">Remove Featured</button>'
+                    '<button class="btn-approve" onclick="makeFeatured(\'' + group.id + '\')">Make Featured</button>' : 
+                    '<button class="btn-reject" onclick="removeFeatured(\'' + group.id + '\')">Remove Featured</button>'
                 }
             </td>
         `;
@@ -659,6 +673,18 @@ function updateChart() {
 // SETTINGS FUNCTIONS
 // ============================================
 
+// Load settings
+function loadSettings() {
+    const saved = localStorage.getItem('adminSettings');
+    if (saved) {
+        const settings = JSON.parse(saved);
+        document.getElementById('adminUser').value = settings.adminUser || 'groupmela';
+        document.getElementById('adminPass').value = settings.adminPass || 'admin@123';
+        document.getElementById('siteName').value = settings.siteName || 'GroupMela';
+        document.getElementById('adminEmail').value = settings.adminEmail || 'admin@groupmela.com';
+    }
+}
+
 // Save settings
 function saveSettings() {
     const settings = {
@@ -732,24 +758,6 @@ function toggleSidebar() {
     document.querySelector('.admin-main').classList.toggle('expanded');
 }
 
-// Show section
-function showSection(section) {
-    document.querySelectorAll('.admin-sidebar-menu li').forEach(li => {
-        li.classList.remove('active');
-    });
-    event.currentTarget.classList.add('active');
-    
-    document.querySelectorAll('.admin-section').forEach(s => {
-        s.classList.remove('active');
-    });
-    document.getElementById(section + '-section').classList.add('active');
-    
-    if (section === 'pending') displayPendingGroups();
-    if (section === 'allgroups') displayAllGroups();
-    if (section === 'categories') displayCategories();
-    if (section === 'reports') displayReports();
-}
-
 // Logout
 function logout() {
     if (confirm('Are you sure you want to logout?')) {
@@ -757,6 +765,10 @@ function logout() {
         window.location.href = 'index.html';
     }
 }
+
+// ============================================
+// STYLES
+// ============================================
 
 // Add animation styles
 const style = document.createElement('style');
@@ -835,3 +847,4 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
