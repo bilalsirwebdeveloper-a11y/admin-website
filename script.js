@@ -326,16 +326,61 @@ function checkFirebaseDirectly() {
     });
 }
 
-// Approve group
+// ============================================
+// CHECK DUPLICATE LINK FOR APPROVAL - NEW FUNCTION
+// ============================================
+function checkDuplicateLinkForApproval(link, currentGroupId, callback) {
+    // Normalize the link (remove trailing slashes, query params, etc.)
+    const normalizedLink = link.replace(/\/$/, '').split('?')[0].split('#')[0];
+    
+    // Only check approved groups for duplicates
+    database.ref('groups').orderByChild('status').equalTo('approved').once('value', (snapshot) => {
+        let isDuplicate = false;
+        
+        snapshot.forEach((childSnapshot) => {
+            const groupId = childSnapshot.key;
+            
+            // Skip current group if we're editing
+            if (groupId === currentGroupId) return;
+            
+            const existingLink = childSnapshot.val().link;
+            const normalizedExisting = existingLink.replace(/\/$/, '').split('?')[0].split('#')[0];
+            
+            if (normalizedExisting === normalizedLink) {
+                isDuplicate = true;
+                return true; // break the loop
+            }
+        });
+        
+        callback(isDuplicate);
+    });
+}
+
+// ============================================
+// UPDATED APPROVE GROUP FUNCTION - WITH DUPLICATE CHECK
+// ============================================
 function approveGroup(id) {
-    if (confirm('✅ Approve this group?')) {
+    const group = groups.find(g => g.id === id);
+    if (!group) return;
+    
+    // Check if this link already exists in approved groups
+    checkDuplicateLinkForApproval(group.link, id, function(isDuplicate) {
+        if (isDuplicate) {
+            const userConfirm = confirm('⚠️ WARNING: This WhatsApp link already exists in APPROVED groups!\n\nClick OK to still approve (duplicate), or Cancel to stop.');
+            if (!userConfirm) {
+                showNotification('Approval cancelled - duplicate link', 'info');
+                return;
+            }
+        }
+        
+        // Proceed with approval
         database.ref('groups/' + id).update({ status: 'approved' })
             .then(() => {
-                showNotification('Group approved!', 'success');
+                showNotification('Group approved successfully!', 'success');
                 refreshData();
             })
             .catch(error => showNotification('Error: ' + error.message, 'error'));
-    }
+    });
 }
 
 // Reject group
