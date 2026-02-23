@@ -1,8 +1,3 @@
-// ============================================
-// FIREBASE REFERENCE - YE LINE ADD KI GAYI HAI
-// ============================================
-const database = firebase.database();
-
 // Check if admin is logged in
 if (!sessionStorage.getItem('adminLoggedIn') && !window.location.pathname.includes('index.html')) {
     window.location.href = 'index.html';
@@ -16,16 +11,17 @@ let chart = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('🚀 Admin panel loaded - FIXED VERSION WITH FIREBASE');
+    console.log('🚀 Admin panel loaded - FIXED VERSION');
     
     // Check if Firebase is initialized
     if (typeof database === 'undefined') {
         console.error('❌ Firebase database not defined!');
-        alert('Firebase not connected! Please check configuration.');
+        showNotification('Firebase not connected! Please check configuration.', 'error');
         return;
     }
     
     console.log('✅ Firebase connected successfully');
+    showNotification('Firebase connected!', 'success');
     
     // Load data from Firebase
     loadCategories();
@@ -96,10 +92,11 @@ function loadCategories() {
         updateStats();
     }, (error) => {
         console.error('Error loading categories:', error);
+        showNotification('Error loading categories', 'error');
     });
 }
 
-// Load groups from Firebase
+// Load groups from Firebase - FIXED VERSION
 function loadGroups() {
     console.log('📥 Loading groups from Firebase...');
     
@@ -130,10 +127,10 @@ function loadGroups() {
         // Update pending count badge
         document.getElementById('pendingCount').textContent = pendingCount;
         
-        alert(`✅ Loaded ${groups.length} groups (${pendingCount} pending)`);
+        showNotification(`Loaded ${groups.length} groups`, 'success');
     }, (error) => {
         console.error('Error loading groups:', error);
-        alert('❌ Error loading groups: ' + error.message);
+        showNotification('Error loading groups', 'error');
     });
     
     // Also set up listener for real-time updates
@@ -222,15 +219,15 @@ function displayRecentGroups() {
             <td><span class="status-badge status-${group.status || 'pending'}">${group.status || 'pending'}</span></td>
             <td>${date}</td>
             <td>
-                <button class="btn-edit" onclick="editGroup('${group.id}')">Edit</button>
-                <button class="btn-delete" onclick="deleteGroup('${group.id}')">Delete</button>
+                <button class="btn-edit" data-id="${group.id}" onclick="editGroup('${group.id}')">Edit</button>
+                <button class="btn-delete" data-id="${group.id}" onclick="deleteGroup('${group.id}')">Delete</button>
             </td>
         `;
     });
 }
 
 // ============================================
-// PENDING GROUPS FUNCTIONS
+// PENDING GROUPS FUNCTIONS - FIXED
 // ============================================
 
 // Display pending groups
@@ -261,9 +258,9 @@ function displayPendingGroups() {
             <td><a href="${group.link || '#'}" target="_blank">View Link</a></td>
             <td>${date}</td>
             <td>
-                <button class="btn-approve" onclick="approveGroup('${group.id}')">✅ Approve</button>
-                <button class="btn-reject" onclick="rejectGroup('${group.id}')">❌ Reject</button>
-                <button class="btn-edit" onclick="editGroup('${group.id}')">✏️ Edit</button>
+                <button class="btn-approve" data-id="${group.id}" onclick="approveGroup('${group.id}')">✅ Approve</button>
+                <button class="btn-reject" data-id="${group.id}" onclick="rejectGroup('${group.id}')">❌ Reject</button>
+                <button class="btn-edit" data-id="${group.id}" onclick="editGroup('${group.id}')">✏️ Edit</button>
             </td>
         `;
     });
@@ -303,10 +300,10 @@ function approveGroup(id) {
     if (confirm('✅ Approve this group? It will be visible on the website.')) {
         database.ref('groups/' + id).update({ status: 'approved' })
             .then(() => {
-                alert('Group approved successfully!');
+                showNotification('Group approved successfully!', 'success');
                 loadGroups();
             })
-            .catch(error => alert('Error: ' + error.message));
+            .catch(error => showNotification('Error: ' + error.message, 'error'));
     }
 }
 
@@ -315,10 +312,10 @@ function rejectGroup(id) {
     if (confirm('❌ Reject this group? It will not be shown.')) {
         database.ref('groups/' + id).update({ status: 'rejected' })
             .then(() => {
-                alert('Group rejected');
+                showNotification('Group rejected', 'info');
                 loadGroups();
             })
-            .catch(error => alert('Error: ' + error.message));
+            .catch(error => showNotification('Error: ' + error.message, 'error'));
     }
 }
 
@@ -368,11 +365,11 @@ function displayAllGroups() {
             <td><span class="status-badge status-${group.status || 'pending'}">${group.status || 'pending'}</span></td>
             <td>${group.featured ? '⭐ Yes' : 'No'}</td>
             <td>
-                <button class="btn-edit" onclick="editGroup('${group.id}')">Edit</button>
-                <button class="btn-delete" onclick="deleteGroup('${group.id}')">Delete</button>
+                <button class="btn-edit" data-id="${group.id}" onclick="editGroup('${group.id}')">Edit</button>
+                <button class="btn-delete" data-id="${group.id}" onclick="deleteGroup('${group.id}')">Delete</button>
                 ${!group.featured ? 
-                    '<button class="btn-approve" onclick="makeFeatured(\'' + group.id + '\')">Make Featured</button>' : 
-                    '<button class="btn-reject" onclick="removeFeatured(\'' + group.id + '\')">Remove Featured</button>'
+                    '<button class="btn-approve" data-id="' + group.id + '" onclick="makeFeatured(\'' + group.id + '\')">Make Featured</button>' : 
+                    '<button class="btn-reject" data-id="' + group.id + '" onclick="removeFeatured(\'' + group.id + '\')">Remove Featured</button>'
                 }
             </td>
         `;
@@ -389,10 +386,10 @@ function deleteGroup(id) {
     if (confirm('⚠️ Delete this group? This cannot be undone!')) {
         database.ref('groups/' + id).remove()
             .then(() => {
-                alert('Group deleted');
+                showNotification('Group deleted', 'info');
                 loadGroups();
             })
-            .catch(error => alert('Error: ' + error.message));
+            .catch(error => showNotification('Error: ' + error.message, 'error'));
     }
 }
 
@@ -400,20 +397,20 @@ function deleteGroup(id) {
 function makeFeatured(id) {
     database.ref('groups/' + id).update({ featured: true })
         .then(() => {
-            alert('Group marked as featured!');
+            showNotification('Group marked as featured!', 'success');
             loadGroups();
         })
-        .catch(error => alert('Error: ' + error.message));
+        .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
 
 // Remove featured
 function removeFeatured(id) {
     database.ref('groups/' + id).update({ featured: false })
         .then(() => {
-            alert('Featured removed');
+            showNotification('Featured removed', 'info');
             loadGroups();
         })
-        .catch(error => alert('Error: ' + error.message));
+        .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
 
 // ============================================
@@ -459,10 +456,10 @@ function updateGroup(event) {
     database.ref('groups/' + groupId).update(updatedData)
         .then(() => {
             closeModal();
-            alert('Group updated successfully!');
+            showNotification('Group updated successfully!', 'success');
             loadGroups();
         })
-        .catch(error => alert('Error: ' + error.message));
+        .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
 
 // Close modal
@@ -506,7 +503,7 @@ function addCategory() {
     const icon = document.getElementById('catIcon').value.trim();
     
     if (!name || !icon) {
-        alert('Enter both name and icon');
+        showNotification('Enter both name and icon', 'error');
         return;
     }
     
@@ -514,17 +511,17 @@ function addCategory() {
         .then(() => {
             document.getElementById('catName').value = '';
             document.getElementById('catIcon').value = '';
-            alert('Category added!');
+            showNotification('Category added!', 'success');
         })
-        .catch(error => alert('Error: ' + error.message));
+        .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
 
 // Delete category
 function deleteCategory(id) {
     if (confirm('Delete this category?')) {
         database.ref('categories/' + id).remove()
-            .then(() => alert('Category deleted'))
-            .catch(error => alert('Error: ' + error.message));
+            .then(() => showNotification('Category deleted', 'info'))
+            .catch(error => showNotification('Error: ' + error.message, 'error'));
     }
 }
 
@@ -567,15 +564,15 @@ function displayReports() {
 // Resolve report
 function resolveReport(id) {
     database.ref('reports/' + id).remove()
-        .then(() => alert('Report resolved'))
-        .catch(error => alert('Error: ' + error.message));
+        .then(() => showNotification('Report resolved', 'success'))
+        .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
 
 // Delete report
 function deleteReport(id) {
     database.ref('reports/' + id).remove()
-        .then(() => alert('Report deleted'))
-        .catch(error => alert('Error: ' + error.message));
+        .then(() => showNotification('Report deleted', 'info'))
+        .catch(error => showNotification('Error: ' + error.message, 'error'));
 }
 
 // ============================================
@@ -672,7 +669,7 @@ function saveSettings() {
     };
     
     localStorage.setItem('adminSettings', JSON.stringify(settings));
-    alert('Settings saved!');
+    showNotification('Settings saved!', 'success');
 }
 
 // Clear all data
@@ -681,12 +678,48 @@ function clearAllData() {
         if (prompt('Type "DELETE" to confirm') === 'DELETE') {
             database.ref().remove()
                 .then(() => {
-                    alert('All data cleared!');
+                    showNotification('All data cleared!', 'warning');
                     setTimeout(() => location.reload(), 2000);
                 })
-                .catch(error => alert('Error: ' + error.message));
+                .catch(error => showNotification('Error: ' + error.message, 'error'));
         }
     }
+}
+
+// ============================================
+// NOTIFICATION SYSTEM
+// ============================================
+
+// Show notification
+function showNotification(message, type = 'success') {
+    const colors = {
+        success: '#28a745',
+        error: '#dc3545',
+        warning: '#ffc107',
+        info: '#17a2b8'
+    };
+    
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: ${colors[type]};
+        color: ${type === 'warning' ? '#333' : 'white'};
+        padding: 15px 25px;
+        border-radius: 8px;
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        z-index: 9999;
+        animation: slideIn 0.3s;
+        font-weight: 500;
+    `;
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    setTimeout(() => {
+        notification.remove();
+    }, 3000);
 }
 
 // ============================================
@@ -724,3 +757,81 @@ function logout() {
         window.location.href = 'index.html';
     }
 }
+
+// Add animation styles
+const style = document.createElement('style');
+style.textContent = `
+    @keyframes slideIn {
+        from { transform: translateX(100%); opacity: 0; }
+        to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .btn-approve, .btn-reject, .btn-edit, .btn-delete {
+        padding: 6px 12px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 12px;
+        margin: 0 2px;
+        transition: all 0.3s;
+    }
+    
+    .btn-approve {
+        background: #28a745;
+        color: white;
+    }
+    
+    .btn-approve:hover {
+        background: #218838;
+    }
+    
+    .btn-reject {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-reject:hover {
+        background: #c82333;
+    }
+    
+    .btn-edit {
+        background: #ffc107;
+        color: #333;
+    }
+    
+    .btn-edit:hover {
+        background: #e0a800;
+    }
+    
+    .btn-delete {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .btn-delete:hover {
+        background: #c82333;
+    }
+    
+    .status-badge {
+        padding: 3px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        display: inline-block;
+    }
+    
+    .status-approved {
+        background: #d4edda;
+        color: #155724;
+    }
+    
+    .status-pending {
+        background: #fff3cd;
+        color: #856404;
+    }
+    
+    .status-rejected {
+        background: #f8d7da;
+        color: #721c24;
+    }
+`;
+document.head.appendChild(style);
